@@ -1207,3 +1207,284 @@ function(msg)
 
 
 ```
+
+```{r }
+pC = sapply(emailStruct, perCaps)
+pC2 = sapply(emailStruct, perCaps2)
+identical(pC, pC2)
+
+indNA = which(is.na(emailDF$subExcCt))
+
+indNoSubject = which(sapply(emailStruct, 
+                            function(msg) 
+                              !("Subject" %in% names(msg$header))))
+
+all(indNA == indNoSubject)
+
+all(emailDF$bodyCharCt > emailDF$numLines)
+
+
+x.at = c(1,10,100,1000,10000,100000)
+y.at = c(1, 5, 10, 50, 100, 500, 5000)
+nL = 1 + emailDF$numLines
+nC = 1 + emailDF$bodyCharCt
+
+```
+
+```{r}
+#pdf("ScatterPlotNumLinesNumChars.pdf", width = 6, height = 4.5)
+plot(nL ~ nC, log = "xy", pch=".", xlim=c(1,100000), axes = FALSE,
+     xlab = "Number of Characters", ylab = "Number of Lines")
+box() 
+axis(1, at = x.at, labels = formatC(x.at, digits = 0, format="d"))
+axis(2, at = y.at, labels = formatC(y.at, digits = 0, format="d")) 
+abline(a=0, b=1, col="red", lwd = 2)
+dev.off()
+
+#pdf("SPAM_boxplotsPercentCaps.pdf", width = 5, height = 5)
+
+percent = emailDF$perCaps
+isSpamLabs = factor(emailDF$isSpam, labels = c("ham", "spam"))
+boxplot(log(1 + percent) ~ isSpamLabs,
+        ylab = "Percent Capitals (log)")
+
+#dev.off()
+
+```
+
+
+```{r}
+logPerCapsSpam = log(1 + emailDF$perCaps[ emailDF$isSpam ])
+logPerCapsHam = log(1 + emailDF$perCaps[ !emailDF$isSpam ])
+
+qqplot(logPerCapsSpam, logPerCapsHam, 
+       xlab = "Regular Email", ylab = "Spam Email", 
+       main = "Percentage of Capital Letters (log scale)",
+       pch = 19, cex = 0.3)
+
+```
+
+```{r}
+#pdf("SPAM_scatterplotPercentCapsTotChars.pdf", width = 8, height = 6)
+ 
+colI = c("#4DAF4A80", "#984EA380")
+logBodyCharCt = log(1 + emailDF$bodyCharCt)
+logPerCaps = log(1 + emailDF$perCaps)
+plot(logPerCaps ~ logBodyCharCt, xlab = "Total Characters (log)",
+     ylab = "Percent Capitals (log)",
+     col = colI[1 + emailDF$isSpam],
+     xlim = c(2,12), pch = 19, cex = 0.5)
+
+#dev.off()
+
+table(emailDF$numAtt, isSpamLabs)
+#pdf("SPAM_mosaicPlots.pdf", width = 8, height = 4)
+
+oldPar = par(mfrow = c(1, 2), mar = c(1,1,1,1))
+
+colM = c("#E41A1C80", "#377EB880")
+isRe = factor(emailDF$isRe, labels = c("no Re:", "Re:"))
+mosaicplot(table(isSpamLabs, isRe), main = "",
+           xlab = "", ylab = "", color = colM)
+
+fromNE = factor(emailDF$numEnd, labels = c("No #", "#"))
+mosaicplot(table(isSpamLabs, fromNE), color = colM,
+           main = "", xlab="", ylab = "")
+
+par(oldPar)
+
+#dev.off()
+
+library(rpart)
+
+setupRpart = function(data) {
+  logicalVars = which(sapply(data, is.logical))
+  facVars = lapply(data[ , logicalVars], 
+                   function(x) {
+                      x = as.factor(x)
+                      levels(x) = c("F", "T")
+                      x
+                   })
+  cbind(facVars, data[ , - logicalVars])
+}
+
+emailDFrp = setupRpart(emailDF)
+
+```
+
+```{r}
+set.seed(418910)
+testSpamIdx = sample(numSpam, size = floor(numSpam/3))
+testHamIdx = sample(numHam, size = floor(numHam/3))
+
+testDF = 
+  rbind( emailDFrp[ emailDFrp$isSpam == "T", ][testSpamIdx, ],
+         emailDFrp[emailDFrp$isSpam == "F", ][testHamIdx, ] )
+trainDF =
+  rbind( emailDFrp[emailDFrp$isSpam == "T", ][-testSpamIdx, ], 
+         emailDFrp[emailDFrp$isSpam == "F", ][-testHamIdx, ])
+
+rpartFit = rpart(isSpam ~ ., data = trainDF, method = "class")
+
+
+install.packages("rpart.plot")
+
+library(rpart.plot)
+library(RColorBrewer)
+#prp(rpartFit, extra = 1)
+
+
+#pdf("SPAM_rpartTree.pdf", width = 7, height = 7)
+
+rpart.plot(rpartFit, extra = 1)
+#dev.off()
+
+predictions = predict(rpartFit, 
+       newdata = testDF[, names(testDF) != "isSpam"],
+       type = "class")
+ 
+predsForHam = predictions[ testDF$isSpam == "F" ]
+summary(predsForHam)
+
+sum(predsForHam == "T") / length(predsForHam)
+
+predsForSpam = predictions[ testDF$isSpam == "T" ]
+sum(predsForSpam == "F") / length(predsForSpam)
+
+complexityVals = c(seq(0.00001, 0.0001, length=19),
+                   seq(0.0001, 0.001, length=19), 
+                   seq(0.001, 0.005, length=9),
+                   seq(0.005, 0.01, length=9))
+
+```
+
+```{r}
+fits = lapply(complexityVals, function(x) {
+         rpartObj = rpart(isSpam ~ ., data = trainDF,
+                          method="class", 
+                          control = rpart.control(cp=x) )
+           
+         predict(rpartObj, 
+                 newdata = testDF[ , names(testDF) != "isSpam"],
+                 type = "class")
+        })
+
+spam = testDF$isSpam == "T"
+numSpam = sum(spam)
+numHam = sum(!spam)
+errs = sapply(fits, function(preds) {
+                      typeI = sum(preds[ !spam ] == "T") / numHam
+                      typeII = sum(preds[ spam ] == "F") / numSpam
+                      c(typeI = typeI, typeII = typeII)
+                     })
+
+
+#pdf("SPAM_rpartTypeIandII.pdf", width = 8, height = 7)
+library(RColorBrewer)
+cols = brewer.pal(9, "Set1")[c(3, 4, 5)]
+plot(errs[1,] ~ complexityVals, type="l", col=cols[2], 
+     lwd = 2, ylim = c(0,0.2), xlim = c(0,0.01), 
+     ylab="Error", xlab="complexity parameter values")
+points(errs[2,] ~ complexityVals, type="l", col=cols[1], lwd = 2)
+
+text(x =c(0.003, 0.0035), y = c(0.12, 0.05), 
+     labels=c("Type II Error", "Type I Error"))
+
+minI = which(errs[1,] == min(errs[1,]))[1]
+abline(v = complexityVals[minI], col ="grey", lty =3, lwd=2)
+
+text(0.0007, errs[1, minI]+0.01, 
+     formatC(errs[1, minI], digits = 2))
+text(0.0007, errs[2, minI]+0.01, 
+     formatC(errs[2, minI], digits = 3))
+
+#dev.off()
+
+```
+
+```{r}
+save(emailDFrp,file="data1.Rda")
+
+```
+
+```{r}
+install.packages("caret")
+install.packages("lattice")
+install.packages("ggplot2")
+
+library(caret)
+
+```
+
+```{r}
+setupRnum = function(data) {
+  logicalVars = which(sapply(data, is.logical))
+  facVars = lapply(data[ , logicalVars], 
+                   function(x) {
+                      x = as.numeric(x)
+                   })
+  cbind(facVars, data[ , - logicalVars])
+}
+
+emailDFnum = setupRnum(emailDF)
+
+emailDFnum[is.na(emailDFnum)]<-0
+
+```
+
+```{r}
+
+cv_folds <- createFolds(emailDFnum$isSpam, k=5, list=TRUE, returnTrain = TRUE)
+lengths(cv_folds)
+
+
+```
+
+```{r}
+install.packages("MLmetrics")
+
+library(MLmetrics)
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  p <- Precision(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  r <- Recall(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  fp <-sum(data$pred==0 & data$obs==1)/length(data$pred)  
+ 
+  fn <-sum(data$pred==1 & data$obs==0)/length(data$pred)
+    c(F1 = f1_val,
+    prec = p,
+    rec = r,
+    Type_I_err=fp,
+    Type_II_err=fn
+   )
+}
+
+
+
+```
+
+```{r}
+install.packages("naivebayes")
+install.packages("e1071")
+
+library(naivebayes)
+library(e1071)
+nb_grid<-expand.grid(laplace=c(0,0.1,0.3,0.5,1), usekernel=c(T,F), adjust=c(T,F))
+train_control<-trainControl(method="cv", number=3, savePredictions = 'final',summaryFunction = f1)
+model_nb<-caret::train(as.factor(isSpam) ~ .,data=emailDFnum, trControl = train_control, method='naive_bayes',tuneGrid = nb_grid)
+model_nb
+
+```
+
+```{r}
+table(model_nb$pred['Resample'])
+
+library(rpart)
+
+rpart_grid<-expand.grid(cp=seq(from=0, to=0.010, by=.0005 ))
+train_control<-trainControl(method="cv", number=10, savePredictions = 'final',summaryFunction = f1)
+model_rp<-caret::train(as.factor(isSpam) ~ .,data=emailDFnum, trControl = train_control, method='rpart',tuneGrid = rpart_grid)
+model_rp
+
+```
+
