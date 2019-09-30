@@ -1545,7 +1545,7 @@ BEGIN ASSIGNMENT:
 
 19.  Consider the other parameters that can be used to control the recursive partitioning process. Read the documentation for them in the rpart.control() documentation. Also, carry out an Internet search for more information on how to tweak the rpart() tuning parameters. Experiment with values for these parameters. Do the trees that result make sense with your understanding of how the parameters are used? Can you improve the prediction using them?
 
-Overall, no:  have not been able to improve the parameters.  Perhaps trying to weight the parameters is the answer.
+Overall, no:  have not been able to improve the parameters.  Perhaps trying to weight the determinants is the answer.??
 
 Cell 39:  setupRpart function
 
@@ -1646,6 +1646,246 @@ sum(predsForSpam == "F") / length(predsForSpam)
 printcp(testcontrolparam1)
 
 ```
+#remaining is explore confusion matrix and weighting of varaibles based on importance of original set
+
+20.  In the section called “Classifying New Messages” we used the test set that we had put aside to both select , the threshold for the log odds, and to evaluate the Type I and II errors incurred when we use this threshold. Ideally, we choose from another set of messages that is both independent of our training data and our test data. The method of cross-validation is designed to use the training set for training and validating the model. Implement 5-fold cross-validation to choose and assess the error rate with our training data. To do this, follow the steps:
+
+Use the sample() function to permute the indices of the training set, and organize these permuted indices into 5 equal-size sets, called folds.
+
+For each fold, take the corresponding subset from the training data to use as a 'test' set. Use the remaining messages in the training data as the training set. Apply the functions developed in the section called “Implementing the Naïve Bayes Classifier” to estimate the probabilities that a word occurs in a message given it is spam or ham, and use these probabilities to compute the log likelihood ratio for the messages in the training set.
+
+Pool all of the LLR values from the messages in all of the folds, i.e., from all of the training data, and use these values and the typeIErrorRate() function to select a threshold that achieves a 1% Type I error.
+
+Apply this threshold to our original/real test set and find its Type I and Type II errors.
+
+```{r problem 20}
+### first identify the "our training data":  for this we can use the data already sampled and separated between train and test sets in the original code.  The data "msgWordLIst" represents the emails pulled apart from attachments, headers, and non-of-interest words (i.e., it is a string of all emails with the applicable words).
+###the original code took this data object and sampled and seperated between Spam and Ham.  Next samples were created for test MsgWords and Is/Is Not Spam.  Those sub samples were then split into train and test sets.  The applicalbe train sets are called "trainMsgWords" and "trainIsSpam" [note, this is a logical vector].  We will use the sample() function on those two train sets to create five sub-samples of equal size in order to cross-fold validation.
+
+#rename the train sets
+
+trainMsgWords2 = trainMsgWords
+trainIsSpam2 = trainIsSpam
+
+class(trainMsgWords2)
+class(trainIsSpam2)
+
+#use sample() to create 5 subsets
+install.packages("nestfs")
+library(nestfs)
+library(dplyr)
+length(trainMsgWords)
+l <- length(trainMsgWords2)
+l1 <- length(trainIsSpam2)
+trainMsgWords2_fold <- create.folds(5,l, seed = NULL)
+trainIsSpam2_fold <- create.folds(5,l1, seed = NULL)
 
 
+
+
+```
+
+###Some sample code
+
+### code example
+
+N <- nrow(EB)
+# Number of desired splits
+folds <- 5
+
+# Generate indices of holdout observations
+holdout <- split(sample(1:N), 1:folds)
+
+###different code example
+
+#Randomly shuffle the data
+yourData<-yourData[sample(nrow(yourData)),]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(yourData)),breaks=10,labels=FALSE)
+
+#Perform 10 fold cross validation
+for(i in 1:10){
+    #Segement your data by fold using the which() function 
+    testIndexes <- which(folds==i,arr.ind=TRUE)
+    testData <- yourData[testIndexes, ]
+    trainData <- yourData[-testIndexes, ]
+    #Use the test and train data partitions however you desire...
+}
+
+###use caret
+
+library(caret)
+set.seed(3456)
+trainIndex <- createDataPartition(iris$Species, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+head(trainIndex)
+
+
+### leveraged code
+
+###cell 14
+
+isSpam = rep(c(FALSE, FALSE, FALSE, TRUE, TRUE), numMsgs)
+
+msgWordsList = unlist(msgWordsList, recursive = FALSE)
+
+numEmail = length(isSpam)
+numSpam = sum(isSpam)
+numHam = numEmail - numSpam
+
+set.seed(418910)
+
+testSpamIdx = sample(numSpam, size = floor(numSpam/3))
+testHamIdx = sample(numHam, size = floor(numHam/3))
+
+testMsgWords = c((msgWordsList[isSpam])[testSpamIdx],
+                 (msgWordsList[!isSpam])[testHamIdx] )
+trainMsgWords = c((msgWordsList[isSpam])[ - testSpamIdx], 
+                  (msgWordsList[!isSpam])[ - testHamIdx])
+
+testIsSpam = rep(c(TRUE, FALSE), 
+                 c(length(testSpamIdx), length(testHamIdx)))
+trainIsSpam = rep(c(TRUE, FALSE), 
+                 c(numSpam - length(testSpamIdx), 
+                   numHam - length(testHamIdx)))
+
+bow = unique(unlist(trainMsgWords))
+
+length(bow)
+
+spamWordCounts = rep(0, length(bow))
+
+names(spamWordCounts) = bow
+
+tmp = lapply(trainMsgWords[trainIsSpam], unique)
+tt = table( unlist(tmp) )
+spamWordCounts[ names(tt) ] = tt
+
+### cell 15
+
+computeFreqs =
+function(wordsList, spam, bow = unique(unlist(wordsList)))
+{
+   # create a matrix for spam, ham, and log odds
+  wordTable = matrix(0.5, nrow = 4, ncol = length(bow), 
+                     dimnames = list(c("spam", "ham", 
+                                        "presentLogOdds", 
+                                        "absentLogOdds"),  bow))
+
+   # For each spam message, add 1 to counts for words in message
+  counts.spam = table(unlist(lapply(wordsList[spam], unique)))
+  wordTable["spam", names(counts.spam)] = counts.spam + .5
+
+   # Similarly for ham messages
+  counts.ham = table(unlist(lapply(wordsList[!spam], unique)))  
+  wordTable["ham", names(counts.ham)] = counts.ham + .5  
+
+
+   # Find the total number of spam and ham
+  numSpam = sum(spam)
+  numHam = length(spam) - numSpam
+
+   # Prob(word|spam) and Prob(word | ham)
+  wordTable["spam", ] = wordTable["spam", ]/(numSpam + .5)
+  wordTable["ham", ] = wordTable["ham", ]/(numHam + .5)
+  
+   # log odds
+  wordTable["presentLogOdds", ] = 
+     log(wordTable["spam",]) - log(wordTable["ham", ])
+  wordTable["absentLogOdds", ] = 
+     log((1 - wordTable["spam", ])) - log((1 -wordTable["ham", ]))
+
+  invisible(wordTable)
+}
+
+
+### cell 16
+
+trainTable = computeFreqs(trainMsgWords, trainIsSpam)
+
+newMsg = testMsgWords[[1]]
+
+newMsg = newMsg[!is.na(match(newMsg, colnames(trainTable)))]
+
+present = colnames(trainTable) %in% newMsg
+
+sum(trainTable["presentLogOdds", present]) + 
+  sum(trainTable["absentLogOdds", !present])
+
+newMsg = testMsgWords[[ which(!testIsSpam)[1] ]]
+newMsg = newMsg[!is.na(match(newMsg, colnames(trainTable)))]
+present = (colnames(trainTable) %in% newMsg)
+sum(trainTable["presentLogOdds", present]) + 
+     sum(trainTable["absentLogOdds", !present])
+
+computeMsgLLR = function(words, freqTable) 
+{
+       # Discards words not in training data.
+  words = words[!is.na(match(words, colnames(freqTable)))]
+
+       # Find which words are present
+  present = colnames(freqTable) %in% words
+
+  sum(freqTable["presentLogOdds", present]) +
+    sum(freqTable["absentLogOdds", !present])
+}
+
+testLLR = sapply(testMsgWords, computeMsgLLR, trainTable)
+
+tapply(testLLR, testIsSpam, summary)
+
+### cell 17
+
+#pdf("SP_Boxplot.pdf", width = 6, height = 6)
+spamLab = c("ham", "spam")[1 + testIsSpam]
+boxplot(testLLR ~ spamLab, ylab = "Log Likelihood Ratio",
+      #  main = "Log Likelihood Ratio for Randomly Chosen Test Messages",
+        ylim=c(-500, 500))
+#dev.off()
+
+### cell 18
+
+typeIErrorRate = 
+function(tau, llrVals, spam)
+{
+  classify = llrVals > tau
+  sum(classify & !spam)/sum(!spam)
+}
+
+typeIErrorRate(0, testLLR,testIsSpam)
+
+typeIErrorRate(-20, testLLR,testIsSpam)
+
+typeIErrorRates = 
+function(llrVals, isSpam) 
+{
+  o = order(llrVals)
+  llrVals =  llrVals[o]
+  isSpam = isSpam[o]
+
+  idx = which(!isSpam)
+  N = length(idx)
+  list(error = (N:1)/N, values = llrVals[idx])
+}
+
+### cell 19
+
+typeIIErrorRates = function(llrVals, isSpam) {
+    
+  o = order(llrVals)
+  llrVals =  llrVals[o]
+  isSpam = isSpam[o]
+    
+    
+  idx = which(isSpam)
+  N = length(idx)
+  list(error = (1:(N))/N, values = llrVals[idx])
+  }  
+
+xI = typeIErrorRates(testLLR, testIsSpam)
+xII = typeIIErrorRates(testLLR, testIsSpam)
+tau01 = round(min(xI$values[xI$error <= 0.01]))
+t2 = max(xII$error[ xII$values < tau01 ])
 
