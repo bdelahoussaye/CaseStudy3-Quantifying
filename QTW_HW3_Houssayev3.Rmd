@@ -1540,3 +1540,112 @@ model_rp
 
 ```
 
+BEGIN ASSIGNMENT:
+
+
+19.  Consider the other parameters that can be used to control the recursive partitioning process. Read the documentation for them in the rpart.control() documentation. Also, carry out an Internet search for more information on how to tweak the rpart() tuning parameters. Experiment with values for these parameters. Do the trees that result make sense with your understanding of how the parameters are used? Can you improve the prediction using them?
+
+Overall, no:  have not been able to improve the parameters.  Perhaps trying to weight the parameters is the answer.
+
+Cell 39:  setupRpart function
+
+documentation for rpart.control():  https://www.rdocumentation.org/packages/rpart/versions/4.1-15/topics/rpart.control
+
+sites considered for additional examples:
+https://www.gormanalysis.com/blog/decision-trees-in-r-using-rpart/
+https://csantill.github.io/RTuningModelParameters/
+https://www.mayo.edu/research/documents/rpartminipdf/doc-10027257
+
+
+```{r}
+#first iteration:  set the seed to 1,000,000; set na.action to equal na.rpart;
+#;decrease the floor to /8 (decreases your sample size by four so we get a smaller tree to see)
+#
+
+set.seed(10000000)
+testSpamIdx = sample(numSpam, size = floor(numSpam/8))
+testHamIdx = sample(numHam, size = floor(numHam/8))
+
+testDF = 
+  rbind( emailDFrp[ emailDFrp$isSpam == "T", ][testSpamIdx, ],
+         emailDFrp[emailDFrp$isSpam == "F", ][testHamIdx, ] )
+trainDF =
+  rbind( emailDFrp[emailDFrp$isSpam == "T", ][-testSpamIdx, ], 
+         emailDFrp[emailDFrp$isSpam == "F", ][-testHamIdx, ])
+
+testcontrolparam <- rpart(isSpam ~., data=trainDF, na.action = na.rpart, method = "class") 
+
+#plot the results
+rpart.plot(testcontrolparam, extra = 1)
+#dev.off()
+
+predictions = predict(testcontrolparam, 
+       newdata = testDF[, names(testDF) != "isSpam"],
+       type = "class")
+ 
+predsForHam = predictions[ testDF$isSpam == "F" ]
+summary(predsForHam)
+
+sum(predsForHam == "T") / length(predsForHam)
+
+predsForSpam = predictions[ testDF$isSpam == "T" ]
+sum(predsForSpam == "F") / length(predsForSpam)
+
+```
+
+```{r}
+
+#not much of a difference in results.  Which is good, but we are going to 
+#increase the sample size in order to fine-tune some control parameters
+#set min split to equal 10 (so we stop trying to split at 10)
+#set max depth to 30.  original model = 9, so lets see what happens when we expand this (especially for the false read-outs)
+# set cross validations to 20.  Because I have the processing speed and I want to see...
+#the number of surrogate splits was also set to 30..again, lets see processing time
+# set min bucket to 2; keep going until the observations get small 
+#also, set the complexity parameter.  this is to determine if a split is to be attempted
+#based on whether a split decreases lack of fit.  meant to cut down on not-needed splits and save time.
+#complexity parameter is the difference maker in the output.  this is the parameter that determines 
+# if there are almost no splits (using the base cp provided in the code) or the current output.
+
+
+
+set.seed(10000000)
+testSpamIdx = sample(numSpam, size = floor(numSpam/2))
+testHamIdx = sample(numHam, size = floor(numHam/2))
+
+testDF = 
+  rbind( emailDFrp[ emailDFrp$isSpam == "T", ][testSpamIdx, ],
+         emailDFrp[emailDFrp$isSpam == "F", ][testHamIdx, ] )
+trainDF =
+  rbind( emailDFrp[emailDFrp$isSpam == "T", ][-testSpamIdx, ], 
+         emailDFrp[emailDFrp$isSpam == "F", ][-testHamIdx, ])
+
+testcontrolparam1 <- rpart(isSpam ~., data=trainDF, na.action = na.rpart, method = "class",control=rpart.control(minsplit = 10, maxdepth=30, xval = 80,maxsurrogate = 40,minbucket = 2, cp = 0.012)) 
+
+#plot the results
+rpart.plot(testcontrolparam1, extra = 1)
+#dev.off()
+
+predictions = predict(testcontrolparam1, 
+       newdata = testDF[, names(testDF) != "isSpam"],
+       type = "class")
+ 
+predsForHam = predictions[ testDF$isSpam == "F" ]
+summary(predsForHam)
+
+sum(predsForHam == "T") / length(predsForHam)
+
+predsForSpam = predictions[ testDF$isSpam == "T" ]
+sum(predsForSpam == "F") / length(predsForSpam)
+
+#out of curiosity, let's see those cv results without cp (note:  showing 0.012 std on cv 11)
+#this tells me that we could probably keep the cp around 0.01.
+
+#when we run a cp = 0.01, the results are very similar to the original model
+
+printcp(testcontrolparam1)
+
+```
+
+
+
