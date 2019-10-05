@@ -1658,6 +1658,41 @@ Pool all of the LLR values from the messages in all of the folds, i.e., from all
 
 Apply this threshold to our original/real test set and find its Type I and Type II errors.
 
+
+```{r crossValidationProblem20}
+
+# cvTrainDF <- trainDF
+# 
+# #randomize the data frame since all of the isSpam=T is at the beginning.
+# cvTrainDF <- cvTrainDF[sample(1:nrow(cvTrainDF)), ]
+# 
+# folds = createFolds(cvTrainDF$isSpam, k=5, list=TRUE)
+cvTrainMsgWords <- trainMsgWords
+cvTrainMsgWords <- cvTrainMsgWords[sample(length(cvTrainMsgWords))]
+wordFoldTestIndexes <- createFolds(cvTrainMsgWords, k=5, list=TRUE)
+
+wordFoldTestIndexes1 = wordFoldTestIndexes$Fold1
+wordFoldTestIndexes2 = wordFoldTestIndexes$Fold2
+wordFoldTestIndexes3 = wordFoldTestIndexes$Fold3
+wordFoldTestIndexes4 = wordFoldTestIndexes$Fold4
+wordFoldTestIndexes5 = wordFoldTestIndexes$Fold5
+
+wordTestFold1 <- trainMsgWords[wordFoldTestIndexes1]
+wordTrainFold1 <- trainMsgWords[-wordFoldTestIndexes1]
+wordTestFold2 <- trainMsgWords[wordFoldTestIndexes2]
+wordTrainFold2 <- trainMsgWords[-wordFoldTestIndexes2]
+wordTestFold3 <- trainMsgWords[wordFoldTestIndexes3]
+wordTrainFold3 <- trainMsgWords[-wordFoldTestIndexes3]
+wordTestFold4 <- trainMsgWords[wordFoldTestIndexes4]
+wordTrainFold4 <- trainMsgWords[-wordFoldTestIndexes4]
+wordTestFold5 <- trainMsgWords[wordFoldTestIndexes5]
+wordTrainFold5 <- trainMsgWords[-wordFoldTestIndexes5]
+
+
+
+
+```
+
 ```{r problem 20}
 ### first identify the "our training data":  for this we can use the data already sampled and separated between train and test sets in the original code.  The data "msgWordLIst" represents the emails pulled apart from attachments, headers, and non-of-interest words (i.e., it is a string of all emails with the applicable words).
 ###the original code took this data object and sampled and seperated between Spam and Ham.  Next samples were created for test MsgWords and Is/Is Not Spam.  Those sub samples were then split into train and test sets.  The applicalbe train sets are called "trainMsgWords" and "trainIsSpam" [note, this is a logical vector].  We will use the sample() function on those two train sets to create five sub-samples of equal size in order to cross-fold validation.
