@@ -475,7 +475,7 @@ f1 <- function(data, lev = NULL, model = NULL) {
 ```
 
 
-```{r}
+```{r dataPrep}
 
 #Data Prepartion [sections 3.3 - 3.5 and cells 1-12]
 
@@ -679,7 +679,7 @@ spamWordCounts[ names(tt) ] = tt
 ```
 
 
-```{r}
+```{r trainTable}
 
 # cell 16 
 
@@ -707,7 +707,7 @@ tapply(testLLR, testIsSpam, summary)
 ```
 
 
-```{r}
+```{r testLLRBoxPlot}
 
 #cell 17
 
@@ -719,7 +719,7 @@ boxplot(testLLR ~ spamLab, ylab = "Log Likelihood Ratio",
 #dev.off()
 ```
 
-```{r}
+```{r errorRates}
 
 #cell 18: page 135, section 3.6.5
 
@@ -729,7 +729,7 @@ typeIErrorRate(-20, testLLR,testIsSpam)
 
 ```
 
-```{r}
+```{r tau}
 
 xI = typeIErrorRates(testLLR, testIsSpam)
 xII = typeIIErrorRates(testLLR, testIsSpam)
@@ -738,7 +738,7 @@ t2 = max(xII$error[ xII$values < tau01 ])
 
 ```
 
-```{r}
+```{r errorRatePlot}
 #pdf("LinePlotTypeI+IIErrors.pdf", width = 8, height = 6)
 #cell 20, section 3.6.4
 
@@ -765,7 +765,7 @@ text(tau01 + 20, 0.05, pos = 4,
 
 ```
 
-```{r}
+```{r kFolds}
 #cell 21, 22:  section 
 
 k = 5
@@ -817,7 +817,7 @@ header[1]
 
 ```
 
-```{r}
+```{r extractHeader}
 #cell 23
 
 headerPieces = read.dcf(textConnection(header), all = TRUE)
@@ -836,7 +836,7 @@ length(unique(names(headerVec)))
 
 ```
 
-```{r}
+```{r parseEmail}
 #cell 24
 
 headerList = lapply(sampleSplit, 
@@ -871,7 +871,7 @@ diff(c(bStringLocs[-1], eStringLoc))
 ```
 
 
-```{r}
+```{r extractBody}
 bodyList = lapply(sampleSplit, function(msg) msg$body)
 attList = mapply(processAttach, bodyList[hasAttach], 
                  contentTypes[hasAttach], 
@@ -889,7 +889,7 @@ body[35:45]
 
 ```
 
-```{r}
+```{r sampleDF}
 #cell 29 closing out section 3.8
 
 emailStruct = mapply(processAllEmail, fullDirNames,
@@ -956,7 +956,7 @@ head(sampleDF)
 
 ```
 
-```{r}
+```{r emailDF}
 
 #cell 33
 
@@ -1273,7 +1273,7 @@ dim(emailDF)
 save(emailDF, file = "spamAssassinDerivedDF.rda")
 ```
 
-```{r}
+```{r emailDFDim}
 #load("Data/spamAssassinDerivedDF.rda")
 #cell 35
 
@@ -1281,7 +1281,7 @@ dim(emailDF)
 
 ```
 
-```{r }
+```{r numLinesNumChar}
 pC = sapply(emailStruct, perCaps)
 pC2 = sapply(emailStruct, perCaps2)
 identical(pC, pC2)
@@ -1304,7 +1304,7 @@ nC = 1 + emailDF$bodyCharCt
 
 ```
 
-```{r}
+```{r plotPercentCapitals}
 #pdf("ScatterPlotNumLinesNumChars.pdf", width = 6, height = 4.5)
 plot(nL ~ nC, log = "xy", pch=".", xlim=c(1,100000), axes = FALSE,
      xlab = "Number of Characters", ylab = "Number of Lines")
@@ -1326,7 +1326,7 @@ boxplot(log(1 + percent) ~ isSpamLabs,
 ```
 
 
-```{r}
+```{r capsPlot}
 logPerCapsSpam = log(1 + emailDF$perCaps[ emailDF$isSpam ])
 logPerCapsHam = log(1 + emailDF$perCaps[ !emailDF$isSpam ])
 
@@ -1337,7 +1337,7 @@ qqplot(logPerCapsSpam, logPerCapsHam,
 
 ```
 
-```{r}
+```{r emailDFrPartPlot}
 #pdf("SPAM_scatterplotPercentCapsTotChars.pdf", width = 8, height = 6)
 #cell 39
  
@@ -1373,7 +1373,7 @@ emailDFrp = setupRpart(emailDF)
 
 ```
 
-```{r}
+```{r treePlot}
 set.seed(418910)
 testSpamIdx = sample(numSpam, size = floor(numSpam/3))
 testHamIdx = sample(numHam, size = floor(numHam/3))
@@ -1416,7 +1416,7 @@ complexityVals = c(seq(0.00001, 0.0001, length=19),
 
 ```
 
-```{r}
+```{r complexityPlot}
 fits = lapply(complexityVals, function(x) {
          rpartObj = rpart(isSpam ~ ., data = trainDF,
                           method="class", 
@@ -1460,7 +1460,7 @@ text(0.0007, errs[2, minI]+0.01,
 
 ```
 
-```{r}
+```{r saveData}
 save(emailDFrp,file="data1.Rda")
 
 ```
@@ -1468,7 +1468,7 @@ save(emailDFrp,file="data1.Rda")
 Ok so first of all our data is in T/F 'factors'.
 We need to change it to numbers. And as it turns out, there are quite a few NANs as well. Let's set those to zero because imputation is till in a few weeks
 
-```{r}
+```{r setNAstoZero}
 #cell 48
 
 emailDFnum = setupRnum(emailDF)
@@ -1480,7 +1480,7 @@ emailDFnum[is.na(emailDFnum)]<-0
 If you want to do splits manually
 Do the following. I prefer to do it as part of the caret package. However, one way to define your folds is to set a seed, and have your folds in a list that you can pass on to others to get the same splits.
 
-```{r}
+```{r createCVFolds}
 #cell 49
 cv_folds <- createFolds(emailDFnum$isSpam, k=5, list=TRUE, returnTrain = TRUE)
 lengths(cv_folds)
@@ -1489,7 +1489,7 @@ lengths(cv_folds)
 Finally Metric Stuff
 Because our authors prefer Type I/II errors, but the cool kids know that Precision/Recall/F1 is where its at, while the default of caret is accuracy and kappa. To get us all on the same page, I create a function that returns the metrics we want. However, rather than re-invent the wheel, I just install a package. I am not sure if it had Type I/II errors so those I made my self.
 
-```{r}
+```{r f1Function}
 f1 <- function(data, lev = NULL, model = NULL) {
   f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
   p <- Precision(y_pred = data$pred, y_true = data$obs, positive = lev[1])
@@ -1518,7 +1518,7 @@ as.factor(isSpam) ~ . means Y=as.factor(isSpam), X=everything else.
 
 method is the package we are using, and we pass our tuning grid.
 
-```{r}
+```{r naivebayesModel}
 
 nb_grid<-expand.grid(laplace=c(0,0.1,0.3,0.5,1), usekernel=c(T,F), adjust=c(T,F))
 train_control<-trainControl(method="cv", number=3, savePredictions = 'final',summaryFunction = f1)
@@ -1530,7 +1530,7 @@ model_nb
 What is the lesson here?
 Learn and understand precomiled packages. It was soooo much easier to use caret than to try things ourselves. This doesn't mean "do not write your own code" What it means is that you can save time by using packages to get your work done. Less time coding = More time analyzing. Be wary that sometimes the defaults are not what you want, so it may require extra effort to understand, but in the long run, there is a huge benefit. Packages are often optimized and thoroughly vetted!
 
-```{r}
+```{r rpartModel}
 table(model_nb$pred['Resample'])
 
 rpart_grid<-expand.grid(cp=seq(from=0, to=0.010, by=.0005 ))
@@ -1557,7 +1557,7 @@ https://csantill.github.io/RTuningModelParameters/
 https://www.mayo.edu/research/documents/rpartminipdf/doc-10027257
 
 
-```{r}
+```{r rpartIteration1}
 #first iteration:  set the seed to 1,000,000; set na.action to equal na.rpart;
 #;decrease the floor to /8 (decreases your sample size by four so we get a smaller tree to see)
 #
@@ -1593,7 +1593,7 @@ sum(predsForSpam == "F") / length(predsForSpam)
 
 ```
 
-```{r}
+```{r rpartIteration2}
 
 #not much of a difference in results.  Which is good, but we are going to 
 #increase the sample size in order to fine-tune some control parameters
