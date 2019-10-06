@@ -1688,8 +1688,29 @@ wordTrainFold4 <- trainMsgWords[-wordFoldTestIndexes4]
 wordTestFold5 <- trainMsgWords[wordFoldTestIndexes5]
 wordTrainFold5 <- trainMsgWords[-wordFoldTestIndexes5]
 
+trainTable = computeFreqs(wordTrainFold1, trainIsSpam)
+testLLRFold1 = sapply(wordTestFold1, computeMsgLLR, trainTable)
 
+trainTable = computeFreqs(wordTrainFold2, trainIsSpam)
+testLLRFold2 = sapply(wordTestFold2, computeMsgLLR, trainTable)
 
+trainTable = computeFreqs(wordTrainFold3, trainIsSpam)
+testLLRFold3 = sapply(wordTestFold3, computeMsgLLR, trainTable)
+
+trainTable = computeFreqs(wordTrainFold4, trainIsSpam)
+testLLRFold4 = sapply(wordTestFold4, computeMsgLLR, trainTable)
+
+trainTable = computeFreqs(wordTrainFold5, trainIsSpam)
+testLLRFold5 = sapply(wordTestFold5, computeMsgLLR, trainTable)
+
+pooledLLR = testLLRFold1
+pooledLLR = append(pooledLLR, testLLRFold2, after = length(pooledLLR))
+pooledLLR = append(pooledLLR, testLLRFold3, after = length(pooledLLR))
+pooledLLR = append(pooledLLR, testLLRFold4, after = length(pooledLLR))
+pooledLLR = append(pooledLLR, testLLRFold5, after = length(pooledLLR))
+
+cvTypeOneErrorRate = typeIErrorRates(testLLR, testIsSpam)
+cvTau01 = round(min(cvTypeOneErrorRate$values[cvTypeOneErrorRate$error <= 0.01]))
 
 ```
 
