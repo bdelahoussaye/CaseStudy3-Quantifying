@@ -1707,75 +1707,65 @@ Apply this threshold to our original/real test set and find its Type I and Type 
 # 
 # folds = createFolds(cvTrainDF$isSpam, k=5, list=TRUE)
 
-isSpam = rep(c(FALSE, FALSE, FALSE, TRUE, TRUE), numMsgs)
+setupRnum = function(data) {
+  logicalVars = which(sapply(data, is.logical))
+  facVars = lapply(data[ , logicalVars], 
+                   function(x) {
+                      x = as.numeric(x)
+                   })
+  cbind(facVars, data[ , - logicalVars])
+}
 
-msgWordsList = unlist(msgWordsList, recursive = FALSE)
+emailDFnum = setupRnum(emailDF)
 
-cvMsgWords1 <- msgWordsList
-cvMsgWords1 <- cvMsgWords1[sample(length(cvMsgWords1))]
-wordFoldTestIndexes <- createFolds(cvMsgWords1, k=5, list=TRUE)
+emailDFnum[is.na(emailDFnum)]<-0
 
-wordFoldTestIndexes1 = wordFoldTestIndexes$Fold1
-wordFoldTestIndexes2 = wordFoldTestIndexes$Fold2
-wordFoldTestIndexes3 = wordFoldTestIndexes$Fold3
-wordFoldTestIndexes4 = wordFoldTestIndexes$Fold4
-wordFoldTestIndexes5 = wordFoldTestIndexes$Fold5
+cv_folds <- createFolds(emailDFnum$isSpam, k=3, list=TRUE, returnTrain = TRUE)
+lengths(cv_folds)
 
-IsSpamFold1 = rep(c(TRUE, FALSE), c(length(wordFoldTestIndexes1)))
-IsSpamFold2 = rep(c(TRUE, FALSE), c(length(wordFoldTestIndexes2)))
-IsSpamFold3 = rep(c(TRUE, FALSE), c(length(wordFoldTestIndexes3)))
-IsSpamFold4 = rep(c(TRUE, FALSE), c(length(wordFoldTestIndexes4)))
-IsSpamFold5 = rep(c(TRUE, FALSE), c(length(wordFoldTestIndexes5)))
+library(MLmetrics)
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- F1_Score(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  p <- Precision(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  r <- Recall(y_pred = data$pred, y_true = data$obs, positive = lev[1])
+  fp <-sum(data$pred==0 & data$obs==1)/length(data$pred)  
+ 
+  fn <-sum(data$pred==1 & data$obs==0)/length(data$pred)
+    c(F1 = f1_val,
+    prec = p,
+    rec = r,
+    Type_I_err=fp,
+    Type_II_err=fn
+   )
+}
 
-wordTestFold1 <- cvMsgWords1[wordFoldTestIndexes1]
-wordTrainFold1 <- cvMsgWords1[-wordFoldTestIndexes1]
-wordTestFold2 <- cvMsgWords1[wordFoldTestIndexes2]
-wordTrainFold2 <- cvMsgWords1[-wordFoldTestIndexes2]
-wordTestFold3 <- cvMsgWords1[wordFoldTestIndexes3]
-wordTrainFold3 <- cvMsgWords1[-wordFoldTestIndexes3]
-wordTestFold4 <- cvMsgWords1[wordFoldTestIndexes4]
-wordTrainFold4 <- cvMsgWords1[-wordFoldTestIndexes4]
-wordTestFold5 <- cvMsgWords1[wordFoldTestIndexes5]
-wordTrainFold5 <- cvMsgWords1[-wordFoldTestIndexes5]
+nb_grid<-expand.grid(laplace=c(0,0.1,0.3,0.5,1), usekernel=c(T,F), adjust=c(T,F))
+train_control<-trainControl(method="cv", number=3, savePredictions = 'final',summaryFunction = f1)
+model_nb<-caret::train(as.factor(isSpam) ~ .,data=emailDFnum, trControl = train_control, method='naive_bayes',tuneGrid = nb_grid)
+model_nb
 
-pooledbow = unique(unlist(wordTrainFold5))
-pooledbow = append(pooledbow, unique(unlist(wordTrainFold4)))
-pooledbow = append(pooledbow, unique(unlist(wordTrainFold3)))
-pooledbow = append(pooledbow, unique(unlist(wordTrainFold2)))
-pooledbow = append(pooledbow, unique(unlist(wordTrainFold1)))
 
-spamWordCounts1 = rep(0, length(pooledbow))
-names(spamWordCounts1) = pooledbow
 
-trainTable1 = computeFreqs1(wordTrainFold1, IsSpamFold1)
-testLLRFold1 = sapply(wordTestFold1, computeMsgLLR, trainTable1)
+table(model_nb$pred['Resample'])
 
-trainTable2 = computeFreqs1(wordTrainFold2, IsSpamFold2)
-testLLRFold2 = sapply(wordTestFold2, computeMsgLLR, trainTable2)
+rpart_grid<-expand.grid(cp=seq(from=0, to=0.010, by=.0005 ))
+train_control<-trainControl(method="cv", number=5, savePredictions = 'final',summaryFunction = f1)
+model_rp<-caret::train(as.factor(isSpam) ~ .,data=emailDFnum, trControl = train_control, method='rpart',tuneGrid = rpart_grid)
+model_rp
 
-trainTable3 = computeFreqs1(wordTrainFold3, IsSpamFold3)
-testLLRFold3 = sapply(wordTestFold3, computeMsgLLR, trainTable3)
 
-trainTable4 = computeFreqs1(wordTrainFold4, IsSpamFold4)
-testLLRFold4 = sapply(wordTestFold4, computeMsgLLR, trainTable4)
 
-trainTable5 = computeFreqs1(wordTrainFold5, IsSpamFold5)
-testLLRFold5 = sapply(wordTestFold5, computeMsgLLR, trainTable5)
 
-pooledLLR = testLLRFold1
-pooledLLR = append(pooledLLR, testLLRFold2, after = length(pooledLLR))
-pooledLLR = append(pooledLLR, testLLRFold3, after = length(pooledLLR))
-pooledLLR = append(pooledLLR, testLLRFold4, after = length(pooledLLR))
-pooledLLR = append(pooledLLR, testLLRFold5, after = length(pooledLLR))
 
-cvTypeOneErrorRate = typeIErrorRates(pooledLLR, IsSpam)
-cvTypeOneErrorRate
-cvTau01 = round(min(cvTypeOneErrorRate$values[cvTypeOneErrorRate$error <= 0.01]))
-cvTau01
+
+
+
+
+
+
+
+
 ```
-
-
-
 
 
 
