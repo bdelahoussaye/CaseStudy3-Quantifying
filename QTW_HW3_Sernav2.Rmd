@@ -1720,7 +1720,7 @@ emailDFnum = setupRnum(emailDF)
 
 emailDFnum[is.na(emailDFnum)]<-0
 
-cv_folds <- createFolds(emailDFnum$isSpam, k=3, list=TRUE, returnTrain = TRUE)
+cv_folds <- createFolds(emailDFnum$isSpam, k=5, list=TRUE, returnTrain = TRUE)
 lengths(cv_folds)
 
 library(MLmetrics)
@@ -1740,7 +1740,7 @@ f1 <- function(data, lev = NULL, model = NULL) {
 }
 
 nb_grid<-expand.grid(laplace=c(0,0.1,0.3,0.5,1), usekernel=c(T,F), adjust=c(T,F))
-train_control<-trainControl(method="cv", number=3, savePredictions = 'final',summaryFunction = f1)
+train_control<-trainControl(method="cv", number=5, savePredictions = 'final',summaryFunction = f1)
 model_nb<-caret::train(as.factor(isSpam) ~ .,data=emailDFnum, trControl = train_control, method='naive_bayes',tuneGrid = nb_grid)
 model_nb
 
@@ -1752,19 +1752,6 @@ rpart_grid<-expand.grid(cp=seq(from=0, to=0.010, by=.0005 ))
 train_control<-trainControl(method="cv", number=5, savePredictions = 'final',summaryFunction = f1)
 model_rp<-caret::train(as.factor(isSpam) ~ .,data=emailDFnum, trControl = train_control, method='rpart',tuneGrid = rpart_grid)
 model_rp
-
-
-
-
-
-
-
-
-
-
-
-
-
 ```
 
 
